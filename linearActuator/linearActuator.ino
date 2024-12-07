@@ -27,9 +27,12 @@ struct MotorState {
   unsigned long nextActionTime; // When the next action should occur
   bool active;                  // Is the motor active
 };
-const long wiggleDurations[] = {2000, 2000, 1000, 1000};
-const int numWiggleSteps = sizeof(durations) / sizeof(durations[0]);
+const long wiggleDurations[] = {1000, 1000, 500, 500};
+const int numWiggleSteps = sizeof(wiggleDurations) / sizeof(wiggleDurations[0]);
 MotorState motors[MOTOR_COUNT];
+
+int wiredBackwards[] = {2, 3, 6};
+int numBackwards = sizeof(wiredBackwards) / sizeof(wiredBackwards[0]);
 
 // bool motorActive[MOTOR_COUNT];              // Tracks if a motor is currently active
 // unsigned long motorStartTime[MOTOR_COUNT];  // Stores the start time for each motor
@@ -43,7 +46,7 @@ void setup() {
   pwm.setPWMFreq(1600);
   Wire.setClock(400000);
 
-  if (!cap.begin(0x5A, &Wire, 12, 6)) {
+  if (!cap.begin(0x5A, &Wire, 4, 2)) {
     Serial.println("MPR121 not found, check wiring?");
     while (1);
   }
@@ -60,20 +63,21 @@ void setup() {
   }
 
   for (int i = 0; i < MOTOR_COUNT; i++) {
-    pwm.setPWM(i * 2, 4096, 0);
-    pwm.setPWM(i * 2 + 1, 0, 4096);
-    motorActive[i] = false;
+    extendMotor(i);
+    // pwm.setPWM(i * 2, 4096, 0);
+    // pwm.setPWM(i * 2 + 1, 0, 4096);
   }
   delay(4000);
   for (int i = 0; i < MOTOR_COUNT; i++) {
-    pwm.setPWM(i * 2 + 1, 4096, 0);
-    pwm.setPWM(i * 2, 0, 4096);
-    motorActive[i] = false;
+    retractMotor(i);
+    // pwm.setPWM(i * 2 + 1, 4096, 0);
+    // pwm.setPWM(i * 2, 0, 4096);
   }
   delay(4000);
   for (int i = 0; i < MOTOR_COUNT; i++) {
-    pwm.setPWM(i * 2, 0, 4096);
-    pwm.setPWM(i * 2 + 1, 0, 4096);
+    stopMotor(i);
+    // pwm.setPWM(i * 2, 0, 4096);
+    // pwm.setPWM(i * 2 + 1, 0, 4096);
   }
 }
 
@@ -106,7 +110,7 @@ void loop() {
 
 void processMotor(int motor) {
   MotorState &m = motors[motor];
-  switch (m.step) {
+  switch (m.wiggleStep) {
     case 0:
     case 2:
       extendMotor(motor);
@@ -119,40 +123,55 @@ void processMotor(int motor) {
       stopMotor(motor);
       return;
   }
-  m.nextActionTime = millis() + durations[m.step];
-  m.step++;
+  m.nextActionTime = millis() + wiggleDurations[m.wiggleStep];
+  m.wiggleStep++;
 }
 
 void startMotor(int motor) {
   motors[motor] = {0, millis(), true}; // Reset sequence
 }
 
+void extendMotor(int motor) {
+  if(isInArray(motor, wiredBackwards, numBackwards)) {
+    pwm.setPWM(motor * 2 + 1, 4096, 0);
+    pwm.setPWM(motor * 2, 0, 4096);
+  } else {
+    pwm.setPWM(motor * 2, 4096, 0);
+    pwm.setPWM(motor * 2 + 1, 0, 4096);
+  }
+  
+  // motorActive[motor] = true;           // Mark the motor as active
+  // motorStartTime[motor] = millis();   // Record the start time
+  // motorDurations[motor] = duration;  // Set the duration for the motor
+}
+
+void retractMotor(int motor) {
+  if(isInArray(motor, wiredBackwards, numBackwards)) {
+    pwm.setPWM(motor * 2, 4096, 0);
+    pwm.setPWM(motor * 2 + 1, 0, 4096);
+  } else {
+    pwm.setPWM(motor * 2 + 1, 4096, 0);
+    pwm.setPWM(motor * 2, 0, 4096);
+  }
+  
+  // motorActive[motor] = true;           // Mark the motor as active
+  // motorStartTime[motor] = millis();   // Record the start time
+  // motorDurations[motor] = duration;  // Set the duration for the motor
+}
+
 void stopMotor(int motor) {
   motors[motor].active = false;
-  stopMotor(motor);
-}
-
-void extendMotor(int motor, long duration) {
-  pwm.setPWM(motor * 2 + 1, 4096, 0);
-  pwm.setPWM(motor * 2, 0, 4096);
-  
-  // motorActive[motor] = true;           // Mark the motor as active
-  // motorStartTime[motor] = millis();   // Record the start time
-  // motorDurations[motor] = duration;  // Set the duration for the motor
-}
-
-void retractMotor(int motor, long duration) {
-  pwm.setPWM(motor * 2, 4096, 0);
-  pwm.setPWM(motor * 2 + 1, 0, 4096);
-  
-  // motorActive[motor] = true;           // Mark the motor as active
-  // motorStartTime[motor] = millis();   // Record the start time
-  // motorDurations[motor] = duration;  // Set the duration for the motor
-}
-
-void stopMotor(int motor) {
   pwm.setPWM(motor * 2, 0, 4096);
   pwm.setPWM(motor * 2 + 1, 0, 4096);
+}
+
+bool isInArray(int value, int array[], int arraySize) {
+  for (int i = 0; i < arraySize; i++) {
+    if (array[i] == value) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
