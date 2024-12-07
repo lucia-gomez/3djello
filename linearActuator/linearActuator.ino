@@ -31,7 +31,7 @@ const long wiggleDurations[] = {1000, 1000, 500, 500};
 const int numWiggleSteps = sizeof(wiggleDurations) / sizeof(wiggleDurations[0]);
 MotorState motors[MOTOR_COUNT];
 
-int wiredBackwards[] = {2, 3, 6};
+int wiredBackwards[] = {2, 3, 7};
 int numBackwards = sizeof(wiredBackwards) / sizeof(wiredBackwards[0]);
 
 // bool motorActive[MOTOR_COUNT];              // Tracks if a motor is currently active
@@ -46,17 +46,11 @@ void setup() {
   pwm.setPWMFreq(1600);
   Wire.setClock(400000);
 
-  if (!cap.begin(0x5A, &Wire, 4, 2)) {
+  if (!cap.begin(0x5A, &Wire, 8, 3)) {
     Serial.println("MPR121 not found, check wiring?");
     while (1);
   }
   Serial.println("MPR121 found!");
-
-  // delay(1000);
-  // for(int i = 0; i < TOUCH_PIN_END; i++) {
-  //   touchBaselines[i] = cap.baselineData(i);
-  //   isTouched[i] = false;
-  // }
 
   for (int i = 0; i < MOTOR_COUNT; i++) {
     motors[i] = {0, 0, false};
@@ -64,20 +58,16 @@ void setup() {
 
   for (int i = 0; i < MOTOR_COUNT; i++) {
     extendMotor(i);
-    // pwm.setPWM(i * 2, 4096, 0);
-    // pwm.setPWM(i * 2 + 1, 0, 4096);
+    delay(i * 100);
   }
   delay(4000);
   for (int i = 0; i < MOTOR_COUNT; i++) {
     retractMotor(i);
-    // pwm.setPWM(i * 2 + 1, 4096, 0);
-    // pwm.setPWM(i * 2, 0, 4096);
+    delay(i * 100);
   }
   delay(4000);
   for (int i = 0; i < MOTOR_COUNT; i++) {
     stopMotor(i);
-    // pwm.setPWM(i * 2, 0, 4096);
-    // pwm.setPWM(i * 2 + 1, 0, 4096);
   }
 }
 
@@ -99,7 +89,7 @@ void loop() {
     // if it *was* touched and now *isnt*, alert!
     if (!(currtouched & _BV(i)) && (lasttouched & _BV(i)) ) {
       Serial.print(i); Serial.println(" released");
-      noteOn(5, 60 + (-6 + i*2), 10);
+      noteOn(5, 60 + (-8 + (MOTOR_COUNT - i)*2), 10);
       startMotor(i);
     }
   }
@@ -132,12 +122,13 @@ void startMotor(int motor) {
 }
 
 void extendMotor(int motor) {
+  int m = swapMotors(motor);
   if(isInArray(motor, wiredBackwards, numBackwards)) {
-    pwm.setPWM(motor * 2 + 1, 4096, 0);
-    pwm.setPWM(motor * 2, 0, 4096);
+    pwm.setPWM(m * 2 + 1, 4096, 0);
+    pwm.setPWM(m * 2, 0, 4096);
   } else {
-    pwm.setPWM(motor * 2, 4096, 0);
-    pwm.setPWM(motor * 2 + 1, 0, 4096);
+    pwm.setPWM(m * 2, 4096, 0);
+    pwm.setPWM(m * 2 + 1, 0, 4096);
   }
   
   // motorActive[motor] = true;           // Mark the motor as active
@@ -146,12 +137,13 @@ void extendMotor(int motor) {
 }
 
 void retractMotor(int motor) {
+  int m = swapMotors(motor);
   if(isInArray(motor, wiredBackwards, numBackwards)) {
-    pwm.setPWM(motor * 2, 4096, 0);
-    pwm.setPWM(motor * 2 + 1, 0, 4096);
+    pwm.setPWM(m * 2, 4096, 0);
+    pwm.setPWM(m * 2 + 1, 0, 4096);
   } else {
-    pwm.setPWM(motor * 2 + 1, 4096, 0);
-    pwm.setPWM(motor * 2, 0, 4096);
+    pwm.setPWM(m * 2 + 1, 4096, 0);
+    pwm.setPWM(m * 2, 0, 4096);
   }
   
   // motorActive[motor] = true;           // Mark the motor as active
@@ -161,8 +153,23 @@ void retractMotor(int motor) {
 
 void stopMotor(int motor) {
   motors[motor].active = false;
-  pwm.setPWM(motor * 2, 0, 4096);
-  pwm.setPWM(motor * 2 + 1, 0, 4096);
+  int m = swapMotors(motor);
+  pwm.setPWM(m * 2, 0, 4096);
+  pwm.setPWM(m * 2 + 1, 0, 4096);
+}
+
+int swapMotors(int motor) {
+  int m = motor;
+  if (motor == 4) {
+    m = 5;
+  } else if (motor == 5) {
+    m = 4;
+  } else if (motor == 6) {
+    m = 7;
+  } else if (motor == 7) {
+    m = 6;
+  }
+  return m;
 }
 
 bool isInArray(int value, int array[], int arraySize) {
